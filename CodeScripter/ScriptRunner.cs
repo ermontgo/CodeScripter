@@ -62,11 +62,12 @@ namespace CodeScripter
                 if (option == "c")
                 {
                     Clipboard.SetText(cb.Text);
+                    break;
                 }
                 else if (option == "e")
                 {
                     ExecuteCodeBlock(cb);
-                    option = "n"; // After executing, move on
+                    break;
                 }
             } while (option != "n");
         }
