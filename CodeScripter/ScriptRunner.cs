@@ -12,22 +12,32 @@ namespace CodeScripter
     public class ScriptRunner
     {
         public string WorkingDirectory { get; set; }
+
+        private MarkdownCursor cursor;
         
         public async Task RunAsync(string script)
         {
             MarkdownDocument document = new MarkdownDocument();
             document.Parse(script);
-
+            
             Console.WriteLine($"Parsed {document.Blocks.Count} blocks");
-            foreach (var block in document.Blocks)
+            cursor = new MarkdownCursor(document.Blocks);
+
+            MarkdownBlock block = cursor.Current;
+            while (block != null)
             {
                 switch (block)
                 {
                     case CodeBlock cb:
                         HandleCodeBlock(cb); break;
-                    default: HandleTextBlock(block); break;
+                    default:
+                        HandleTextBlock(block);
+                        cursor.MoveNext();
+                        break;
                 }
-            }
+
+                block = cursor.Current;
+            } 
 
             Console.WriteLine("All blocks processed");
         }
@@ -52,24 +62,56 @@ namespace CodeScripter
         {
             PrintCodeBlockHeader(cb);
 
-            string option = "";
+            char option = '\0';
 
+            Console.Write("(c) copy; (e) execute; (n) next block, (b) previous block; (q) quit;\n> ");
+            option = Console.ReadKey().KeyChar;
+
+            // Move the cursor to overwrite the prompt
+            // ResetCursor(2);
+            Console.WriteLine();
+
+            switch (option)
+            {
+                case 'c':
+                    Clipboard.SetText(cb.Text);
+                    cursor.MoveNext();
+                    break;
+                case 'e':
+                    ExecuteCodeBlock(cb);
+                    cursor.MoveNext();
+                    break;
+                case 'b': MoveToPreviousCodeBlock(); break;
+                case 'n': cursor.MoveNext(); break;
+                case 'q': cursor.End(); break;
+            }
+        }
+
+        private void MoveToPreviousCodeBlock()
+        {
+            MarkdownBlock block = cursor.Current;
             do
             {
-                Console.WriteLine("Enter (c) to copy; (e) to execute; (n) to go to the next block");
-                option = Console.ReadLine();
+                cursor.MovePrevious();
+                block = cursor.Current;
+            } while (block != null && !(block is CodeBlock));
 
-                if (option == "c")
-                {
-                    Clipboard.SetText(cb.Text);
-                    break;
-                }
-                else if (option == "e")
-                {
-                    ExecuteCodeBlock(cb);
-                    break;
-                }
-            } while (option != "n");
+            if (block == null) cursor.MoveNext(); //If we hit the beginning, then start from the first one
+        }
+
+        private static void ResetCursor(int lineCount = 1)
+        {
+            for (int i = 0; i < lineCount; i++)
+            {
+                int cursorTop = Console.CursorTop;
+
+                if (i > 0) cursorTop--;
+
+                Console.SetCursorPosition(0, cursorTop);
+                Console.Write(new string(' ', Console.WindowWidth));
+            }
+
+            Console.SetCursorPosition(0, Console.CursorTop);
         }
 
         private void PrintCodeBlockHeader(CodeBlock cb)
